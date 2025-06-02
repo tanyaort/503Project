@@ -81,5 +81,5 @@ Each member contributed to data cleaning, modeling, evaluation, and documentatio
   - Compare model performance using common evaluation metrics
  
 ### License
-    MIT License
+  - MIT License: https://creativecommons.org/licenses/by/4.0/legalcode
 ### Acknowledgments
