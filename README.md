@@ -12,7 +12,7 @@ Active
 
 This project was completed in RStudio using .Rmd and .R files. To reproduce or run this project:
 
-Clone this repository from GitHub
+Clone this repository from GitHub: 
 
 Open the R project or .Rmd file in RStudio
 
@@ -33,3 +33,33 @@ Tanya Ortega
 Cynthia ortales-Loebell
 
 Lei Lin
+
+Each member contributed to data cleaning, modeling, evaluation, and documentation. Final responsibilities will include presenting the results and submitting a technical report and summary slide deck
+
+## Methods Used
+- Data Cleaning & Wrangling
+
+- Exploratory Data Analysis (EDA)
+
+- Predictive Modeling
+
+- Logistic Regression
+
+- Model Evaluation (AUC, Accuracy, Recall, etc.)
+
+- Data Visualization
+
+- Data Splitting (Train/Test)
+
+## Technologies
+- R
+
+- RStudio
+
+- Tidyverse
+
+- ggplot2
+
+- caret
+
+- pROC
