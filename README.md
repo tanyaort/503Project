@@ -80,6 +80,6 @@ Each member contributed to data cleaning, modeling, evaluation, and documentatio
  
   - Compare model performance using common evaluation metrics
  
-    ### License
+### License
     MIT License
-    ### Acknowledgments
+### Acknowledgments
