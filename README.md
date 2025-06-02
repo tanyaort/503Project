@@ -83,3 +83,5 @@ Each member contributed to data cleaning, modeling, evaluation, and documentatio
 ### License
   - MIT License: https://creativecommons.org/licenses/by/4.0/legalcode
 ### Acknowledgments
+Special thanks to Professor An Tran for guidance and support throughout ADS 503, and to our classmates for their collaboration.
+Dataset courtesy of the UCI Machine Learning Repository, originally compiled by Hospital Universitario de Caracas.
