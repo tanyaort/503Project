@@ -63,3 +63,12 @@ Each member contributed to data cleaning, modeling, evaluation, and documentatio
 - caret
 
 - pROC
+
+  ## Project Description
+  We are working with the Cervical Cancer (Risk Factors) Data Set containing 858 records and 36 variables. The dataset includes a variety of binary, categorical, and numerical predictors tied to cervical cancer risk
+
+  ### Dataset Source:
+  -UCI Machine Learning Repository: https://archive.ics.uci.edu/dataset/383/cervical+cancer+risk+factors
+  ### Target Variable:
+  - biopsy (1 = positive diagnosis, 0 = negative)
+  - 
