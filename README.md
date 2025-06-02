@@ -28,11 +28,11 @@ We are utilizing the Cervical Cancer Risk Factors dataset from the UCI Machine L
 
 ## Partner(s)/Contributor(s)
 
-Tanya Ortega
+- Tanya Ortega
 
-Cynthia ortales-Loebell
+- Cynthia Portales-Loebell
 
-Lei Lin
+- Lei Lin
 
 Each member contributed to data cleaning, modeling, evaluation, and documentation. Final responsibilities will include presenting the results and submitting a technical report and summary slide deck
 
