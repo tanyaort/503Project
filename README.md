@@ -44,6 +44,8 @@ Each member contributed to data cleaning, modeling, evaluation, and documentatio
 - Predictive Modeling
 
 - Logistic Regression
+  
+- Decision Tree
 
 - Model Evaluation (AUC, Accuracy, Recall, etc.)
 
