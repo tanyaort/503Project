@@ -1,0 +1,463 @@
+---
+title: "Cervical Cancer Risk Prediction"
+author: "Team 5 - ADS 503"
+date: "2025-05-31"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Introduction
+
+This project is a predictive modeling analysis focused on cervical cancer. The dataset was collected at Hospital Universitario de Caracas in Venezuela and includes patient demographic, lifestyle, and medical history information. The goal is to build models that can predict whether a patient is likely to test positive for cervical cancer based on biopsy outcomes.
+
+```{r setup, include=FALSE}
+# Load libraries
+library(tidyverse)
+library(caret)
+library(janitor)
+library(skimr)
+library(purrr)
+library(GGally)
+library(corrplot)
+```
+
+## Data Importing and Pre-Processing
+```{r}
+cervical_data <- read_csv("risk_factors_cervical_cancer.csv")
+```
+
+```{r}
+head(cervical_data, 10)
+View(head(cervical_data, 10))
+```
+
+```{r}
+nrow(cervical_data)  # Number of rows (patients)
+ncol(cervical_data)  # Number of columns (features)
+```
+
+```{r}
+# cleaning up feature names
+cervical_data <- cervical_data %>% clean_names()
+
+# need to manually rename a few features
+cervical_data <- cervical_data %>%
+  rename(
+    stds = st_ds,
+    stds_number = st_ds_number,
+    stds_condylomatosis = st_ds_condylomatosis,
+    stds_cervical_condylomatosis = st_ds_cervical_condylomatosis,
+    stds_vaginal_condylomatosis = st_ds_vaginal_condylomatosis,
+    stds_vulvo_perineal_condylomatosis = st_ds_vulvo_perineal_condylomatosis,
+    stds_syphilis = st_ds_syphilis,
+    stds_pelvic_inflammatory_disease = st_ds_pelvic_inflammatory_disease,
+    stds_genital_herpes = st_ds_genital_herpes,
+    stds_molluscum_contagiosum = st_ds_molluscum_contagiosum,
+    stds_aids = st_ds_aids,
+    stds_hiv = st_ds_hiv,
+    stds_hepatitis_b = st_ds_hepatitis_b,
+    stds_hpv = st_ds_hpv,
+    stds_number_of_diagnosis = st_ds_number_of_diagnosis,
+    stds_time_since_first_diagnosis = st_ds_time_since_first_diagnosis,
+    stds_time_since_last_diagnosis = st_ds_time_since_last_diagnosis
+  )
+
+colnames(cervical_data)
+```
+
+```{r}
+# Convert ? to NA
+cervical_data[cervical_data == "?"] <- NA
+sum(cervical_data == "?", na.rm = TRUE)
+
+```
+
+```{r}
+# Show unique values for each column
+map(cervical_data, ~ unique(.) %>% sort()) %>%
+  enframe(name = "column", value = "unique_values") %>%
+  print(n = Inf)
+```
+
+```{r}
+# convert all character columns to numeric
+cervical_data <- cervical_data %>%
+  mutate(across(where(is.character), ~ as.numeric(.)))
+
+# recategorizing binary indicator variables as categorical (factor) type
+# note: All binary variables are coded as 0 = “No” and 1 = “Yes”.
+factor_vars <- c("smokes", "hormonal_contraceptives", "iud", "stds",
+                 "stds_condylomatosis", "stds_cervical_condylomatosis", 
+                 "stds_vaginal_condylomatosis", "stds_vulvo_perineal_condylomatosis",
+                 "stds_syphilis", "stds_pelvic_inflammatory_disease", 
+                 "stds_genital_herpes", "stds_molluscum_contagiosum", 
+                 "stds_aids", "stds_hiv", "stds_hepatitis_b", "stds_hpv",
+                 "dx_cancer", "dx_cin", "dx_hpv", "dx", 
+                 "hinselmann", "schiller", "citology", "biopsy")
+
+cervical_data <- cervical_data %>%
+  mutate(across(all_of(factor_vars), ~ as.factor(.)))
+```
+
+```{r}
+head(cervical_data, 10)
+View(head(cervical_data, 10))
+```
+
+```{r}
+# view missing data
+colSums(is.na(cervical_data))
+```
+
+```{r}
+# drop sparse columns with >90% missing values (too incomplete for modeling)
+cervical_data <- cervical_data %>%
+  select(-stds_time_since_first_diagnosis, -stds_time_since_last_diagnosis)
+```
+
+
+
+```{r}
+# Exam numeric variable correlation
+
+# Select numeric columns and remove rows with NAs temporarily
+numeric_data <- cervical_data %>%
+  select(where(is.numeric)) %>%
+  drop_na()
+
+# Compute correlation matrix
+cor_matrix <- cor(numeric_data)
+
+# Plot correlation heatmap
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.8)
+```
+
+```{r}
+# Missing Value Imputation
+
+# separate numeric columns
+numeric_vars <- cervical_data %>%
+  select(where(is.numeric))
+
+# apply median imputation
+preproc <- preProcess(numeric_vars, method = "medianImpute")
+numeric_imputed <- predict(preproc, numeric_vars)
+
+# recombine with non-numeric columns (factors)
+non_numeric <- cervical_data %>%
+  select(where(Negate(is.numeric)))
+
+# Final imputed dataset, and saving separately for models that require no NAs for modeling
+cervical_data_imputed <- bind_cols(numeric_imputed, non_numeric)
+```
+
+```{r}
+
+# Preprocess Target Variable further and separate out the numeric predictors
+
+# Create binary numeric version of biopsy (0 = No, 1 = Yes)
+cervical_data_imputed$biopsy_numeric <- as.numeric(cervical_data_imputed$biopsy) - 1
+
+# Select numeric predictors (exclude biopsy_numeric itself)
+numeric_vars <- cervical_data_imputed %>%
+  select(where(is.numeric)) %>%
+  select(-biopsy_numeric)
+```
+
+
+```{r}
+# Exam correlation between numeric predictors and the target
+
+# Compute point-biserial correlation between each predictor and biopsy_numeric
+cor_results <- sapply(numeric_vars, function(x) {
+  cor.test(cervical_data_imputed$biopsy_numeric, x)$estimate
+})
+
+# Display sorted correlations from strongest to weakest
+sort(cor_results, decreasing = TRUE)
+```
+The correlation is all very weak, all less than 0.1.
+
+
+
+
+## Exploratory Data Analysis
+
+```{r}
+summary(cervical_data)
+```
+
+```{r}
+# drop features with only one unique value and NA: no predictive power
+cervical_data <- cervical_data %>%
+  select(-stds_cervical_condylomatosis, -stds_aids)
+```
+We found that stds_cervical_condylomatosis and stds_aids each contained only one unique non-missing value (all "0", or "No") and had a high proportion of missing values (NA). This indicates that they provide no meaningful variation for modeling and would add unnecessary sparsity to the data. While it’s possible that the missingness is related to the value itself (e.g., respondents choosing not to disclose due to sensitivity), the lack of variation in the observed data makes it impossible to model these features reliably. This aligns with guidance that missingness dependent on the unobserved value itself (i.e., Not Missing At Random) presents a particularly difficult modeling scenario (Kuhn & Johnson, 2013). **Citing WEEK 2 Discussion post reading, include in final paper!
+
+```{r}
+# we want to do more discovery in selecting the target variable
+table(cervical_data$biopsy)
+table(cervical_data$dx_cancer)
+```
+This table tells us that biopsy positives are more common than positive cancer diagnoses. Only 18 patients were diagnosed with cancer, which is very small for a classification target.
+
+```{r}
+tab <- table(cervical_data$biopsy, cervical_data$dx_cancer)
+
+dimnames(tab) <- list(
+  Biopsy = c("Negative", "Positive"),
+  CancerDiagnosis = c("No Cancer", "Cancer")
+)
+addmargins(tab)
+```
+To note from this table: Not all positive biopsies were diagnosed as cancer. 49 patients had a positive biopsy, but no confirmed cancer diagnosis (could be precancerous). Some patients were diagnosed with cancer despite a negative biopsy (could be a preexisting diagnosis).
+
+```{r}
+ggplot(cervical_data, aes(x = biopsy, fill = dx_cancer)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Biopsy Results by Cancer Diagnosis",
+       x = "Biopsy Result", y = "Count", fill = "Cancer Diagnosis")
+```
+
+```{r}
+ggplot(cervical_data, aes(x = age)) + 
+  geom_histogram(binwidth = 5, fill = "blue") +
+  labs(title = "Age Distribution")
+```
+The age distribution of patients is right-skewed, with the majority of patients between 20 and 40 years old. A small number of patients are over 50, and very few are over 70. This suggests that the dataset largely reflects a younger population, which aligns with the typical age range for cervical cancer screening. However, outliers in the older range could be important to monitor for elevated risk patterns.
+
+
+```{r}
+ggplot(cervical_data, aes(x = biopsy, y = age)) +
+  geom_boxplot() +
+  labs(title = "Age by Biopsy Outcome")
+```
+The median age for patients with a positive biopsy result appears slightly higher than for those with a negative result. While there is considerable overlap in the distributions, the boxplot suggests that older patients may be more likely to test positive for cervical cancer. A few older individuals with negative biopsy results appear as outliers, but the positive group shows a more concentrated distribution between ages 25 and 45.
+
+```{r}
+ggplot(cervical_data, aes(x = smokes, fill = biopsy)) +
+  geom_bar(position = "fill") +
+  labs(title = "Smoking Status by Biopsy Result")
+```
+This bar plot shows the proportion of biopsy outcomes (0 = Negative, 1 = Positive) across smoking status groups (0 = non-smoker, 1= smoker, NA = missing value). The distribution of biopsy results appears very similar across all three smoking categories. This suggests that smoking status does not show a strong relationship with biopsy outcome in this dataset.
+
+```{r}
+# view the distribution of years of hormonal contraceptive use across biopsy (using the imputed dataset to avoid NAs)
+ggplot(cervical_data_imputed, aes(x = biopsy, y = hormonal_contraceptives_years)) +
+  geom_boxplot() +
+  labs(title = "Hormonal Contraceptive Use (Years) by Biopsy Result")
+```
+Although the medians for hormonal contraceptive use are similar between biopsy outcome groups, the distribution for the positive biopsy group is more spread out and contains more patients with slightly longer years of use. This could indicate that patients with positive biopsy results may have a few more years of contraceptive use (although correlation was weak).
+
+
+
+```{r}
+# Checking missing value relationship with the class
+ismissing <- function(x) {sum(is.na(x)) > 0}
+
+cervical_data$Ismissing <- apply(cervical_data[,-32], 1, ismissing)
+
+missingtoclass <- table(cervical_data$biopsy, cervical_data$Ismissing)
+
+prop_missingtoclass <- prop.table(missingtoclass, 1)
+
+print(missingtoclass)
+
+print(prop_missingtoclass)
+
+# Perform Chi-square test on the missingness vs. class table
+chisq_test <- chisq.test(missingtoclass)
+print(chisq_test)
+
+# Removing is missing column to maintain dataset integrity
+cervical_data <- cervical_data[,-33]
+
+```
+There are 180 counts of rows with NA in predictors related to the negative (0) result of biopsy, which represents 22% of all predictor data points for negative result of biopsy. There are 10 counts of rows with NA in predictors related to the positive (1) of biopsy, which represents of 18% of all predictor data points for positive result of biopsy. The two proportion numbers are relatively close, indicating that the missingness might not be related to the outcome labels. 
+
+A chi-squared test of independence was performed to assess whether the presence of missing values was associated with the biopsy outcome. Since the p-value = 0.5729 is much greater than the standard alpha level of 0.05, we cannot reject the null hypothesis:There is no statistically significant association between missingness in the predictor variables and the biopsy outcome.
+
+Therefore, the result was not statistically significant, χ²(1, N = 858) = 0.318, p = 0.573, suggesting that missingness is likely missing at random with respect to the outcome variable. Therefore, it is reasonable to proceed with imputation under the assumption that missingness is not outcome-dependent.
+
+```{r}
+
+# Check and remove colinearities among the predictors
+
+# Convert all columns to numeric
+cervical_data_num <- mutate_all(cervical_data[,-32], as.numeric)
+
+# Compute correlations using pairwise complete observations
+correlations <- cor(cervical_data_num, use = "pairwise.complete.obs")
+
+# Plot full correlation heatmap
+corrplot(correlations, method = "color", type = "upper", tl.cex = 0.8)
+
+# Find highly correlated predictors (cutoff = 0.70)
+highCorr <- findCorrelation(correlations, cutoff = 0.70)
+
+# Show number of highly correlated columns
+length(highCorr)
+
+# Show names of highly correlated columns
+cat("Removed highly correlated columns:\n")
+print(colnames(cervical_data_num)[highCorr])
+
+
+# Get column names of highly correlated variables
+cols_to_remove <- colnames(cervical_data_num)[highCorr]
+
+# Remove those columns from the original cervical_data_imputed
+cervical_data_imputed <- cervical_data_imputed[, !(names(cervical_data_imputed) %in% cols_to_remove)]
+
+length(cervical_data_imputed)
+
+# Show names of remaining variables
+cat("Remaining variables:\n")
+print(colnames(cervical_data_imputed))
+```
+Removing colinearities among the predictors, there are 6 predictors that exceed the threshold of 0.7 on correlation coefficients got removed. They are stds_number, stds, stds_condylomatosis, smokes_years, dx_cancer, and iud.  There are 29 variables remain in cervical_data_imputed dataframe.  
+
+
+```{r}
+# For illustration purpose to study the Zero and Near-zero variance
+
+# Zero variance columns
+zv_cols <- nearZeroVar(cervical_data_imputed, saveMetrics = TRUE)
+
+# Print names of zero variance columns
+cat("\nZero variance columns:\n")
+colnames(zv_cols[,-4:-3])
+
+# Remove ZV columns
+cervical_data_imputed_fzv <- cervical_data_imputed[, !zv_cols$zeroVar]  
+
+# Print number of columns remaining after remove zv
+cat("Number of columns remaining after removing zero variance predictors:", 
+    ncol(cervical_data_imputed_fzv), "\n\n")
+
+# Print names of remaining columns
+cat("Remaining column names:\n")
+print(names(cervical_data_imputed_fzv))
+
+# Identify near-zero variance (NZV) columns in predictors
+degeneratecols <- nearZeroVar(cervical_data_imputed [,-29:-28])
+
+# Print names of near zero variance columns
+cat("\nnear zero variance columns:\n")
+print(names(cervical_data_imputed)[degeneratecols])
+
+
+# Remove NZV columns
+cervical_data_imputed_fnzv <- cervical_data_imputed[, -degeneratecols]
+
+# Print number of columns remaining after remove nzv
+cat("Number of columns remaining after removing near-zero variance predictors:", 
+    ncol(cervical_data_imputed_fnzv), "\n\n")
+
+# Print names of remaining columns
+cat("Remaining column names:\n")
+print(names(cervical_data_imputed_fnzv))
+
+
+```
+The number of zero variance predictors is 2, and they are freqRatio and percentUnique. Removing these 2 variables would result in 27 variables left in the dataset. However, there are 16 near zero variance predictors in the dataset, which is a large number of predictors. Removing them would result in only 13 variables left. We have experimented and iterated on removing the zero variance vs removing all near zero variance and found out removing all near zero variance is the optimal data set for model building, such as logistic model building. 
+
+Therefore, we will proceed with removing all near zero variance. The remaining predictors are age, number_of_sexual_partners, first_sexual_intercourse, num_of_pregnancies, hormonal_contraceptives_years, stds_number_of_diagnosis, smokes, hormonal_contraceptives, stds_vulvo_perineal_condylomatosis, schiller, and citology.  
+
+
+
+```{r}
+# Data Prep w/one hot encode and remove near zero variance X, and then data partition
+
+seed <- 123
+
+
+X <- cervical_data_imputed %>%
+  select(-biopsy, -biopsy_numeric)
+
+# Remove all Near Zero Variance columns
+nzv_cols <- nearZeroVar(X)
+X <- X[, -nzv_cols]                    # Drop near zero-variance columns
+
+# Create dummy variable model (includes one-hot encoding for factors)
+dummies_model <- dummyVars(" ~ .", data = X)
+
+# Apply the transformation: results in a numeric matrix
+X_encoded <- predict(dummies_model, newdata = X)
+
+# Convert to a data frame
+X_encoded <- as.data.frame(X_encoded)
+
+X <- X_encoded
+
+y <-  cervical_data_imputed$biopsy
+
+# If you want to try all numeric for your models
+# X <- mutate_all(X, as.numeric)
+# y <-  cervical_data_imputed$biopsy_numeric
+
+# Split into training and test sets
+set.seed(seed)
+trainIndex <- createDataPartition(y, p = 0.8, list = FALSE)
+X_train <- X[trainIndex, ]
+y_train <- y[trainIndex]
+X_test <- X[-trainIndex, ]
+y_test <- y[-trainIndex]
+
+# Preprocess: KNN Impute of the remaining NA in the factor predictors 
+# (medianImpute remained a choose if needed), center, scale
+# install.packages("RANN") # for KNN Impute if needed
+preProc <- preProcess(X_train, method = c("knnImpute", "center", "scale"))
+#preProc <- preProcess(X_train, method = c("medianImpute", "center", "scale"))
+
+
+# Apply preprocessing
+X_train_pp <- predict(preProc, X_train)
+X_test_pp <- predict(preProc, X_test)
+
+# Set 10-fold cross validation control
+ctrl <- trainControl(method = "cv", number = 10)
+```
+
+```{r}
+
+# Train logistic regression model ( The 3rd iteration but can still use more work)
+set.seed(seed)
+logit_model <- train(
+  x = X_train_pp,
+  y = as.factor(ifelse(y_train == 1, "Yes", "No")),  # Convert to factor
+  method = "glm",
+  family = "binomial",
+  trControl = ctrl,
+  metric = "Accuracy"
+)
+
+# Predict class labels on test set
+logit_preds <- predict(logit_model, newdata = X_test_pp)
+
+# Predict class probabilities for ROC
+logit_probs <- predict(logit_model, newdata = X_test_pp, type = "prob")
+
+# Confusion Matrix
+conf_matrix <- confusionMatrix(logit_preds, as.factor(ifelse(y_test == 1, "Yes", "No")), positive = "Yes")
+print(conf_matrix)
+
+# ROC and AUC
+library(pROC)
+roc_obj <- roc(response = y_test, predictor = logit_probs$Yes)
+auc_value <- auc(roc_obj)
+cat("\nAUC:", round(auc_value, 4), "\n")
+
+# Plot ROC curve
+plot(roc_obj, main = "Logistic Regression ROC Curve")
+
+```
+
+
+This initial logistic regression model performed well in predicting cervical cancer biopsy outcomes. It achieved an overall accuracy of 95.9% and an AUC of 0.9784, indicating strong discriminatory power. The model identified 91% of actual positive cases (sensitivity = 0.91) and correctly classified 96.3% of negative cases (specificity = 0.963). Balanced accuracy came in at 0.936, suggesting that the model is performing consistently across both classes. The confusion matrix shows only one false negative and six false positives, and the negative predictive value (0.9936) confirms that predictions of “no cancer” are highly reliable.
+
+While the model is off to a strong start, there is room for improvement in precision. The positive predictive value was 0.625, meaning that about 38% of predicted positives were incorrect. The kappa score of 0.7193 suggests substantial agreement between predicted and actual outcomes. Additionally, McNemar’s test (p = 0.1306) shows no statistically significant disagreement between predictions and true labels, which supports the model's consistency. Overall, this first model provides a solid baseline for early detection, and future iterations can focus on improving PPV through threshold tuning or more advanced modeling techniques.
+
+
+
