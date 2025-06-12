@@ -198,7 +198,7 @@ summary(cervical_data)
 cervical_data <- cervical_data %>%
   select(-stds_cervical_condylomatosis, -stds_aids)
 ```
-We found that stds_cervical_condylomatosis and stds_aids each contained only one unique non-missing value (all "0", or "No") and had a high proportion of missing values (NA). This indicates that they provide no meaningful variation for modeling and would add unnecessary sparsity to the data. While it’s possible that the missingness is related to the value itself (e.g., respondents choosing not to disclose due to sensitivity), the lack of variation in the observed data makes it impossible to model these features reliably. This aligns with guidance that missingness dependent on the unobserved value itself (i.e., Not Missing At Random) presents a particularly difficult modeling scenario (Kuhn & Johnson, 2013). **Citing WEEK 2 Discussion post reading, include in final paper!
+We found that stds_cervical_condylomatosis and stds_aids each contained only one unique non-missing value (all "0", or "No") and had a high proportion of missing values (NA). This indicates that they provide no meaningful variation for modeling and would add unnecessary sparsity to the data. While it’s possible that the missingness is related to the value itself (e.g., respondents choosing not to disclose due to sensitivity), the lack of variation in the observed data makes it impossible to model these features reliably. This aligns with guidance that missingness dependent on the unobserved value itself (i.e., Not Missing At Random) presents a particularly difficult modeling scenario (Gelman & Hill, 2006).
 
 ```{r}
 # we want to do more discovery in selecting the target variable
