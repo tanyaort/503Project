@@ -47,6 +47,10 @@ Each member contributed to data cleaning, modeling, evaluation, and documentatio
   
 - Decision Tree
 
+- Random Forest
+
+- XGBoost
+
 - Model Evaluation (AUC, Accuracy, Recall, etc.)
 
 - Data Visualization
